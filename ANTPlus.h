@@ -63,26 +63,34 @@
 #define DATA_PAGE_HEART_RATE_4              (0x04)
 #define DATA_PAGE_HEART_RATE_4ALT           (0x84)
 
-#define DATA_PAGE_SPEED_DISTANCE_1              (0x01) 
-#define DATA_PAGE_SPEED_DISTANCE_2              (0x02) 
+#define DATA_PAGE_SPEED_CADENCE_0           (0x00) 
+
+#define DATA_PAGE_POWER_POWER_ONLY			(0x10)
+#define DATA_PAGE_POWER_WHEEL_TORQUE		(0x11)
+
 
 #define PUBLIC_NETWORK     (  0)
 
-#define DEVCE_TYPE_HRM     (120)
-#define DEVCE_TYPE_CADENCE (121)
-#define DEVCE_TYPE_SDM     (124)
-#define DEVCE_TYPE_GPS     (  0)
+#define DEVCE_TYPE_HRM     				(120)
+#define DEVCE_TYPE_POWER     			(11)
+#define DEVCE_TYPE_SPEED_AND_CADENCE 	(121)
+#define DEVCE_TYPE_SDM     				(124)
+#define DEVCE_TYPE_GPS     				(0)
 
 #define DEVCE_TIMEOUT      (12) //!< N * 2.5 : 12 > 30 seconds
 #define DEVCE_GPS_FREQ     (50) //!< 2400 + N MHz : 50 > 2450
 #define DEVCE_SENSOR_FREQ  (57) //!< 2400 + N MHz : 57 > 2457
 
 //TODO: add other rates
-#define DEVCE_SDM_LOWEST_RATE     (16268)
-#define DEVCE_HRM_LOWEST_RATE     (32280)
+#define DEVCE_SDM_LOWEST_RATE     	(16268)
+#define DEVCE_HRM_LOWEST_RATE     	(32280)
+#define DEVCE_CADENCE_LOWEST_RATE 	(32344)
+#define DEVCE_POWER_LOWEST_RATE		(8182)
 
-#define DEVCE_GPS_RATE     (8070)
-#define DEVCE_CADENCE_RATE     (8085)
+
+#define DEVCE_GPS_RATE         			(8070)
+#define DEVCE_SPEED_AND_CADENCE_RATE    (8086)
+#define DEVCE_POWER_RATE         		(8182)  
 
 
 //! ANT Packet coming off the wire.
@@ -153,6 +161,46 @@ typedef struct ANT_SDMDataPage2_struct
   byte reserved6;
   byte status;
 } ANT_SDMDataPage2;
+
+
+typedef struct ANT_SpeedCadencePage0_struct
+{
+   byte cadence_event_time_LSB;
+   byte cadence_event_time_MSB;
+   byte cadence_revolution_LSB;
+   byte cadence_revolution_MSB;   
+   byte speed_event_time_LSB;
+   byte speed_event_time_MSB;
+//TODO: Union above
+   byte speed_revolutions_LSB;
+   byte speed_revolutions_MSB;
+
+} ANT_SpeedCadencePage0;
+
+typedef struct ANT_Power_PowerOnly_DataPage_struct
+{
+	byte data_page_number; 
+	byte update_event_count;
+	byte pedal_power;
+	byte instantaneous_cadence;
+	byte accumulated_power_LSB;
+	byte accumulated_power_MSB;
+	byte instantaneous_power_LSB;
+	byte instantaneous_power_MSB;	
+} ANT_Power_PowerOnly_DataPage;
+
+typedef struct ANT_Power_WheelTorque_DataPage_struct
+{
+	byte data_page_number; 
+	byte update_event_count;
+	byte wheel_ticks;
+	byte instantaneous_cadence;
+	byte wheel_period_LSB;
+	byte wheel_period_MSB;
+	byte accumulated_torque_LSB;
+	byte accumulated_torque_MSB;	
+} ANT_Power_WheelTorque_DataPage;
+
 
 //! See progress_setup_channel().
 typedef enum
