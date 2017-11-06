@@ -46,8 +46,8 @@
 #endif
 
 //BK - Hack to save the teeniest of SRAM space....
-//#define ANT_DEVICE_NUMBER_CHANNELS (8) //!< nRF24AP2 has an 8 channel version.
-#define ANT_DEVICE_NUMBER_CHANNELS (1) //!< nRF24AP2 has an 8 channel version. However -- it seems there are issues bringing up two channels with this code. TODO: Review and fix.
+#define ANT_DEVICE_NUMBER_CHANNELS (8) //!< nRF24AP2 has an 8 channel version.
+//#define ANT_DEVICE_NUMBER_CHANNELS (1) //!< nRF24AP2 has an 8 channel version. However -- it seems there are issues bringing up two channels with this code. TODO: Review and fix.
 
 
 
