@@ -22,8 +22,6 @@ Wiring to the Arduino Pro Mini 3v3 can be seen in 'antplus' below.
 #include <Arduino.h>
 
 //#define NDEBUG
-#define ANTPLUS_DEBUG //output the ANTPLUS Packets
-
 #define __ASSERT_USE_STDERR
 #include <assert.h>
 
@@ -91,7 +89,7 @@ Wiring to the Arduino Pro Mini 3v3 can be seen in 'antplus' below.
 
 //Arduino Pro Mini pins to the nrf24AP2 modules pinouts
 static const int RTS_PIN      = 2; //!< RTS on the nRF24AP2 module
-static const int RTS_PIN_INT  = 1; //!< The interrupt equivalent of the RTS_PIN
+//static const int RTS_PIN_INT  = 0; //!< The interrupt equivalent of the RTS_PIN
 
 
 #if !defined(ANTPLUS_ON_HW_UART)
@@ -104,15 +102,15 @@ static SoftwareSerial ant_serial(TX_PIN, RX_PIN); // RXArd, TXArd -- Arduino is 
 
 static ANTPlus        antplus   = ANTPlus(RTS_PIN, 6/*SUSPEND*/, 4/*SLEEP*/, 9/*RESET*/ );
 
-//ANT Channel config for HRM
-static ANT_Channel hrm_channel =
+static ANT_Channel fitness_channel =
 {
   0, //Channel Number
-  PUBLIC_NETWORK,
+  MASTER_DEVICE, //Channel_Type
+  0, //Network Number
   DEVCE_TIMEOUT,
-  DEVCE_TYPE_HRM,
+  DEVCE_TYPE_FITNESS_EQUIPMENT,
   DEVCE_SENSOR_FREQ,
-  DEVCE_HRM_LOWEST_RATE,
+  DEVCE_FITNESS_LOWEST_RATE,
   ANT_SENSOR_NETWORK_KEY,
   ANT_CHANNEL_ESTABLISH_PROGRESSING,
   FALSE,
@@ -120,6 +118,10 @@ static ANT_Channel hrm_channel =
 };
 
 volatile int rts_ant_received = 0; //!< ANT RTS interrupt flag see isr_rts_ant()
+
+//Globals for Power measurement 
+Bike_Trainer_with_Power Trainer_Data;
+
 
 // **************************************************************************************************
 // *********************************  ISRs  *********************************************************
@@ -129,7 +131,6 @@ volatile int rts_ant_received = 0; //!< ANT RTS interrupt flag see isr_rts_ant()
 void isr_rts_ant()
 {
   rts_ant_received = 1;
-  Serial.println("ISR_ANT");
 }
 
 // **************************************************************************************************
@@ -154,6 +155,7 @@ void process_packet( ANT_Packet * packet )
       SERIAL_DEBUG_PRINT_F( " " );
       const ANT_DataPage * dp = (const ANT_DataPage *) broadcast->data;
       
+/*	  
       //Update received data
       if( broadcast->channel_number == hrm_channel.channel_number )
       {
@@ -189,6 +191,8 @@ void process_packet( ANT_Packet * packet )
             }
         }
     }
+*/
+
     break;
     }
     
@@ -206,18 +210,19 @@ void process_packet( ANT_Packet * packet )
 // **************************************************************************************************
 void setup()
 {
+  delay(2000);
 #if defined(USE_SERIAL_CONSOLE)
   Serial.begin(115200); 
 #endif //defined(USE_SERIAL_CONSOLE)
 
-  SERIAL_DEBUG_PRINTLN("ANTPlus HRM Test!");
+  SERIAL_DEBUG_PRINTLN("ANTPlus Trainer!");
   SERIAL_DEBUG_PRINTLN_F("Setup.");
 
   SERIAL_DEBUG_PRINTLN_F("ANT+ Config.");
 
   //We setup an interrupt to detect when the RTS is received from the ANT chip.
   //This is a 50 usec HIGH signal at the end of each valid ANT message received from the host at the chip
-  attachInterrupt(RTS_PIN_INT, isr_rts_ant, RISING);
+  attachInterrupt(digitalPinToInterrupt(RTS_PIN), isr_rts_ant, RISING);
 
 
 #if defined(ANTPLUS_ON_HW_UART)
@@ -232,6 +237,14 @@ void setup()
 
   SERIAL_DEBUG_PRINTLN_F("ANT+ Config Finished.");
   SERIAL_DEBUG_PRINTLN_F("Setup Finished.");
+  
+//Setup Bike Trainer
+Trainer_Data.ANT_event = 0;
+Trainer_Data.Event_Count = 0;
+Trainer_Data.ANT_INST_power = 0;
+Trainer_Data.ANT_power =0;
+Trainer_Data.ANT_icad = 0;
+
 }
 
 // **************************************************************************************************
@@ -290,25 +303,47 @@ void loop()
   }
 
 
-  if(hrm_channel.channel_establish != ANT_CHANNEL_ESTABLISH_COMPLETE)
+  if(fitness_channel.channel_establish != ANT_CHANNEL_ESTABLISH_COMPLETE)
   {
-    antplus.progress_setup_channel( &hrm_channel );
-    if(hrm_channel.channel_establish == ANT_CHANNEL_ESTABLISH_COMPLETE)
+    antplus.progress_setup_channel( &fitness_channel );
+    if(fitness_channel.channel_establish == ANT_CHANNEL_ESTABLISH_COMPLETE)
     {
-      SERIAL_DEBUG_PRINT( hrm_channel.channel_number );
+      SERIAL_DEBUG_PRINT( fitness_channel.channel_number );
       SERIAL_DEBUG_PRINTLN_F( " - Established." );
     }
     else
-    if(hrm_channel.channel_establish == ANT_CHANNEL_ESTABLISH_PROGRESSING)
+    if(fitness_channel.channel_establish == ANT_CHANNEL_ESTABLISH_PROGRESSING)
     {
-      SERIAL_DEBUG_PRINT( hrm_channel.channel_number );
+      SERIAL_DEBUG_PRINT( fitness_channel.channel_number );
       SERIAL_DEBUG_PRINTLN_F( " - Progressing." );
     }
     else
     {
-      SERIAL_DEBUG_PRINT( hrm_channel.channel_number );
+      SERIAL_DEBUG_PRINT( fitness_channel.channel_number );
       SERIAL_DEBUG_PRINTLN_F( " - ERROR!" );
     }
   }
+  
+ //if all is good, start sending fake data of ba
+  if(fitness_channel.channel_establish == ANT_CHANNEL_ESTABLISH_COMPLETE)
+	{
+	  ANT_Fitness_Specific_Trainer_Data_struct Trainer_Data;
+	  Trainer_Data.data_page_number = DATA_PAGE_SPECIFIC_TRAINER_DATA_PAGE;	  
+	  Trainer_Data.update_event_count = 0x01;
+	  Trainer_Data.instantaneous_cadence = 0x10;
+	  Trainer_Data.accumulated_power_LSB = 0x20;
+	  Trainer_Data.accumulated_power_MSB = 0x30;
+	  Trainer_Data.instantaneous_power_LSB = 0x40;
+	  Trainer_Data.instantaneous_power_MSB = 0x50;
+	  Trainer_Data.trainer_status_bit_field = 0x60;
+	  Trainer_Data.flags_bit_field = 0x00;
+	  
+	  SERIAL_DEBUG_PRINTLN_F( "Sending" );
+	  antplus.send(MESG_BROADCAST_DATA_ID,MESG_INVALID_ID,9,0,
+		  Trainer_Data.data_page_number, Trainer_Data.update_event_count, Trainer_Data.instantaneous_cadence, 
+		  Trainer_Data.accumulated_power_LSB, Trainer_Data.accumulated_power_MSB, Trainer_Data.instantaneous_power_LSB, 
+		  Trainer_Data.instantaneous_power_MSB, Trainer_Data.trainer_status_bit_field);
+	  delay(2000);
+	}  
 }
 

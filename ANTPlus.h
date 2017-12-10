@@ -25,8 +25,8 @@
 
 #define ANTPLUS_MINIMAL_RECEIVE_BUFFER_FOR_BROADCAST_DATA //<! Saves SRAM if we only expect to be receiving ANT+ HRM and SDM buffers.
 
-//#define ANTPLUS_DEBUG //!< Prints various debug messages. Disable here or via using NDEBUG externally
-//#define ANTPLUS_MSG_STR_DECODE //<! Stringiser for various codes for easier debugging
+#define ANTPLUS_DEBUG //!< Prints various debug messages. Disable here or via using NDEBUG externally
+#define ANTPLUS_MSG_STR_DECODE //<! Stringiser for various codes for easier debugging
 
 #if defined(NDEBUG)
 #undef ANTPLUS_DEBUG
@@ -46,8 +46,8 @@
 #endif
 
 //BK - Hack to save the teeniest of SRAM space....
-#define ANT_DEVICE_NUMBER_CHANNELS (8) //!< nRF24AP2 has an 8 channel version.
-//#define ANT_DEVICE_NUMBER_CHANNELS (1) //!< nRF24AP2 has an 8 channel version. However -- it seems there are issues bringing up two channels with this code. TODO: Review and fix.
+//#define ANT_DEVICE_NUMBER_CHANNELS (8) //!< nRF24AP2 has an 8 channel version.
+#define ANT_DEVICE_NUMBER_CHANNELS (1) //!< nRF24AP2 has an 8 channel version. However -- it seems there are issues bringing up two channels with this code. TODO: Review and fix.
 
 
 
@@ -63,19 +63,30 @@
 #define DATA_PAGE_HEART_RATE_4              (0x04)
 #define DATA_PAGE_HEART_RATE_4ALT           (0x84)
 
-#define DATA_PAGE_SPEED_CADENCE_0           (0x00) 
+#define DATA_PAGE_SPEED_DISTANCE_1          (0x01) 
+#define DATA_PAGE_SPEED_DISTANCE_2          (0x02) 
 
+//Power Meter
 #define DATA_PAGE_POWER_POWER_ONLY			(0x10)
 #define DATA_PAGE_POWER_WHEEL_TORQUE		(0x11)
 
+//Fitness Equipment
+#define DATA_PAGE_FITNESS_BASIC_RESISTANCE  (0x30)
+#define DATA_PAGE_FITNESS_TARGET_POWER		(0x31)
+#define DATA_PAGE_TRACK_RESISTANE			(0x33)
+#define DATA_PAGE_SPECIFIC_TRAINER_DATA_PAGE (0X19)
+#define GENERAL_FE_DATA						(0X10)
 
-#define PUBLIC_NETWORK     (  0)
+
+#define PUBLIC_NETWORK     (  0) //slave tyoe
+#define MASTER_DEVICE	   (0x10)
 
 #define DEVCE_TYPE_HRM     				(120)
 #define DEVCE_TYPE_POWER     			(11)
 #define DEVCE_TYPE_SPEED_AND_CADENCE 	(121)
 #define DEVCE_TYPE_SDM     				(124)
 #define DEVCE_TYPE_GPS     				(0)
+#define DEVCE_TYPE_FITNESS_EQUIPMENT	(17)
 
 #define DEVCE_TIMEOUT      (12) //!< N * 2.5 : 12 > 30 seconds
 #define DEVCE_GPS_FREQ     (50) //!< 2400 + N MHz : 50 > 2450
@@ -86,6 +97,7 @@
 #define DEVCE_HRM_LOWEST_RATE     	(32280)
 #define DEVCE_CADENCE_LOWEST_RATE 	(32344)
 #define DEVCE_POWER_LOWEST_RATE		(8182)
+#define DEVCE_FITNESS_LOWEST_RATE	(8192)
 
 
 #define DEVCE_GPS_RATE         			(8070)
@@ -202,6 +214,67 @@ typedef struct ANT_Power_WheelTorque_DataPage_struct
 } ANT_Power_WheelTorque_DataPage;
 
 
+//Data Page 25 (0x19)
+typedef struct ANT_Fitness_Specific_Trainer_Data_struct
+{
+	byte data_page_number;
+	byte update_event_count;
+	byte instantaneous_cadence;
+	byte accumulated_power_LSB;
+	byte accumulated_power_MSB;
+	byte instantaneous_power_LSB;
+	byte instantaneous_power_MSB;
+	byte trainer_status_bit_field;
+	byte flags_bit_field;	
+} ANT_Fitness_Specific_Trainer_Data_DataPage;
+
+//Data Page 16 (0x10)
+typedef struct ANT_Fitness_General_FE_Data_struct
+{
+	byte data_page_number;
+	byte equipment_type_bit_field;
+	byte elapsed_time;
+	byte distance_traveled;
+	byte speed_lsb;
+	byte speed_msb;
+	byte heart_rate;
+	byte capabilities_bit_field;
+} ANT_Fitness_General_FE_Data_DataPage;
+
+//Data Page 48 (0x30)
+typedef struct ANT_Fitness_Basic_Resistance_DataPage_struct
+{
+	byte data_page_number;
+	byte Total_Resistance;	
+} ANT_Fitness_Basic_Resistance_DataPage;
+
+//Data Page 49 (0x31)
+typedef struct ANT_Fitness_Target_Power_DataPage_struct
+{
+	byte data_page_number;
+	byte Target_Power_LSB;	
+	byte Target_Power_MSB;
+} ANT_Fitness_Target_Power_DataPage;
+
+//Data Page 51 (0x33)
+typedef struct ANT_Fitness_Track_Resistance_struct
+{
+	byte data_page_number;
+	byte Grade_of_Simulated_Track_LSB;	
+	byte Grade_of_Simulated_Track_MSB;
+	byte Coefficient_of_Rolling_Resistance;
+} ANT_Fitness_Track_Resistance_DataPage;
+
+typedef struct Bike_Trainer_with_Power_struct
+{
+	byte ANT_event;
+	uint8_t Event_Count;
+	uint16_t ANT_INST_power;
+	uint16_t ANT_power ;
+	uint8_t ANT_icad; // Corrected Cadence
+} Bike_Trainer_with_Power;
+
+
 //! See progress_setup_channel().
 typedef enum
 {
@@ -218,6 +291,7 @@ typedef struct ANT_Channel_struct
 {
    //Configuration items for channel
    int channel_number; //TODO: Look at making this internally assigned
+   int channel_type;
    int network_number;
    int timeout;
    int device_type;
@@ -230,7 +304,6 @@ typedef struct ANT_Channel_struct
    int state_counter; //Private for internal use only
 } ANT_Channel;
  
-
 
 //! See readPacket().
 typedef enum

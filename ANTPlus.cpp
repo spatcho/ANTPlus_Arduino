@@ -422,7 +422,7 @@ ANT_CHANNEL_ESTABLISH ANTPlus::progress_setup_channel( ANT_Channel * channel )
     //   Channel: 0
     //   Channel Type: for Receive Channel
     //   Network Number: 0 for Public Network
-    sent_ok = send(MESG_ASSIGN_CHANNEL_ID, MESG_RESPONSE_EVENT_ID/*Expected response*/, 3, channel->channel_number, 0, channel->network_number); 
+    sent_ok = send(MESG_ASSIGN_CHANNEL_ID, MESG_RESPONSE_EVENT_ID/*Expected response*/, 3, channel->channel_number, channel->channel_type, channel->network_number); 
   }
   else
   if(channel->state_counter == 3)
