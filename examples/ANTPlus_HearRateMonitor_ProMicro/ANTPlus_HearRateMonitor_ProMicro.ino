@@ -78,8 +78,8 @@ Wiring to the Arduino Pro Mini 3v3 can be seen in 'antplus' below.
 
 //The ANT+ network keys are not allowed to be published so they are stripped from here.
 //They are available in the ANT+ docs at thisisant.com
-#define ANT_SENSOR_NETWORK_KEY {0xB9, 0xA5, 0x21, 0xFB, 0xBD, 0x72, 0xC3, 0x45}
-#define ANT_GPS_NETWORK_KEY    {0xE8, 0xE4, 0x21, 0x3B, 0x55, 0x7A, 0x67, 0xC1}
+//#define ANT_SENSOR_NETWORK_KEY {0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
+//#define ANT_GPS_NETWORK_KEY    {0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
 
 #if !defined( ANT_SENSOR_NETWORK_KEY ) || !defined(ANT_GPS_NETWORK_KEY)
 #error "The Network Keys are missing. Better go find them by signing up at thisisant.com"
