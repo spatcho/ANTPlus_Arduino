@@ -42,32 +42,68 @@ Wiring to the Arduino Pro Mini 3v3 can be seen in 'antplus' below.
 //Logging macros
 //********************************************************************
 #define SERIAL_DEBUG
+#define DEBUG_LEVEL 0 //use 4 for all, 0 for basic
 
 #if !defined(USE_SERIAL_CONSOLE)
-//Disable logging under these circumstances
-#undef SERIAL_DEBUG
+	//Disable logging under these circumstances
+	#undef SERIAL_DEBUG
 #endif
 
 //F() stores static strings that come into existence here in flash (makes things a bit more stable)
 #ifdef SERIAL_DEBUG
-
-#define SERIAL_DEBUG_PRINT(x)  	    (Serial.print(x))
-#define SERIAL_DEBUG_PRINTLN(x)	    (Serial.println(x))
-#define SERIAL_DEBUG_PRINT_F(x)  	  (Serial.print(F(x)))
-#define SERIAL_DEBUG_PRINTLN_F(x)	  (Serial.println(F(x)))
-#define SERIAL_DEBUG_PRINT2(x,y)    (Serial.print(x,y))
-#define SERIAL_DEBUG_PRINTLN2(x,y)	(Serial.println(x,y))
-
-#else
-
-#define SERIAL_DEBUG_PRINT(x)
-#define SERIAL_DEBUG_PRINTLN(x)
-#define SERIAL_DEBUG_PRINT_F(x)
-#define SERIAL_DEBUG_PRINTLN_F(x)
-#define SERIAL_DEBUG_PRINT2(x,y)
-#define SERIAL_DEBUG_PRINTLN2(x,y)
-
+	#if DEBUG_LEVEL >= 4
+		#define SERIAL_DEBUG_PRINT(x)  	    	(Serial.print(x))
+		#define SERIAL_DEBUG_PRINTLN(x)	    	(Serial.println(x))
+		#define SERIAL_DEBUG_PRINT_F(x)  	  	(Serial.print(F(x)))
+		#define SERIAL_DEBUG_PRINTLN_F(x)	  	(Serial.println(F(x)))
+		#define SERIAL_DEBUG_PRINT2(x,y)    	(Serial.print(x,y))
+		#define SERIAL_DEBUG_PRINTLN2(x,y)		(Serial.println(x,y))
+	#else
+		#define SERIAL_DEBUG_PRINT(x)
+		#define SERIAL_DEBUG_PRINTLN(x)
+		#define SERIAL_DEBUG_PRINT_F(x)
+		#define SERIAL_DEBUG_PRINTLN_F(x)
+		#define SERIAL_DEBUG_PRINT2(x,y)
+		#define SERIAL_DEBUG_PRINTLN2(x,y)
+	#endif	
+	#if DEBUG_LEVEL >= 0
+		#define SERIAL_DEBUG_0_PRINT(x)  	    (Serial.print(x))
+		#define SERIAL_DEBUG_0_PRINTLN(x)	    (Serial.println(x))
+		#define SERIAL_DEBUG_0_PRINT_F(x)  	  	(Serial.print(F(x)))
+		#define SERIAL_DEBUG_0_PRINTLN_F(x)	  	(Serial.println(F(x)))
+		#define SERIAL_DEBUG_0_PRINT2(x,y)    	(Serial.print(x,y))
+		#define SERIAL_DEBUG_0_PRINTLN2(x,y)	(Serial.println(x,y))
+	#else
+		#define SERIAL_DEBUG_0_PRINT(x)  	
+		#define SERIAL_DEBUG_0_PRINTLN(x)	
+		#define SERIAL_DEBUG_0_PRINT_F(x)  	
+		#define SERIAL_DEBUG_0_PRINTLN_F(x)			
+		#define SERIAL_DEBUG_0_PRINT2(x,y)  		
+		#define SERIAL_DEBUG_0_PRINTLN2(x,y)
+	#endif		
 #endif
+
+#ifndef SERIAL_DEBUG
+	#define SERIAL_DEBUG_PRINT(x)
+	#define SERIAL_DEBUG_PRINTLN(x)
+	#define SERIAL_DEBUG_PRINT_F(x)
+	#define SERIAL_DEBUG_PRINTLN_F(x)
+	#define SERIAL_DEBUG_PRINT2(x,y)
+	#define SERIAL_DEBUG_PRINTLN2(x,y)
+	
+	#define SERIAL_DEBUG_0_PRINT(x)  	
+	#define SERIAL_DEBUG_0_PRINTLN(x)	
+	#define SERIAL_DEBUG_0_PRINT_F(x)  	
+	#define SERIAL_DEBUG_0_PRINTLN_F(x)			
+	#define SERIAL_DEBUG_0_PRINT2(x,y)  		
+	#define SERIAL_DEBUG_0_PRINTLN2(x,y)		
+#endif
+
+
+
+
+
+
 
 //********************************************************************
 
@@ -82,6 +118,11 @@ Wiring to the Arduino Pro Mini 3v3 can be seen in 'antplus' below.
 #if !defined( ANT_SENSOR_NETWORK_KEY ) || !defined(ANT_GPS_NETWORK_KEY)
 #error "The Network Keys are missing. Better go find them by signing up at thisisant.com"
 #endif
+
+// ****************************************************************************
+// ******************************  Defines for Sending Power  *****************
+// ****************************************************************************
+#define PAGE_SEND_DELAY_MS 250
 
 // ****************************************************************************
 // ******************************  GLOBALS  ***********************************
@@ -104,23 +145,32 @@ static ANTPlus        antplus   = ANTPlus(RTS_PIN, 6/*SUSPEND*/, 4/*SLEEP*/, 9/*
 
 static ANT_Channel fitness_channel =
 {
-  0, //Channel Number
-  MASTER_DEVICE, //Channel_Type
-  0, //Network Number
-  DEVCE_TIMEOUT,
-  DEVCE_TYPE_FITNESS_EQUIPMENT,
-  DEVCE_SENSOR_FREQ,
-  DEVCE_FITNESS_LOWEST_RATE,
-  ANT_SENSOR_NETWORK_KEY,
-  ANT_CHANNEL_ESTABLISH_PROGRESSING,
-  FALSE,
-  0, //state_counter
+	0, //Channel Number
+	MASTER_DEVICE, //Channel_Type
+	0, //Network Number
+	DEVCE_TIMEOUT,
+	DEVCE_TYPE_FITNESS_EQUIPMENT,
+	DEVCE_SENSOR_FREQ,
+	DEVCE_FITNESS_LOWEST_RATE,
+	0x06, //device number MSB
+	0x00, //device number LSB
+	ANT_SENSOR_NETWORK_KEY,
+	ANT_CHANNEL_ESTABLISH_PROGRESSING,
+	FALSE,
+	
+	0, //state_counter
 };
 
 volatile int rts_ant_received = 0; //!< ANT RTS interrupt flag see isr_rts_ant()
 
 //Globals for Power measurement 
 Bike_Trainer_with_Power Trainer_Data;
+int testpower;
+int message_step;
+
+//Timers
+unsigned long current_time_ms;
+unsigned long last_time_ms;
 
 
 // **************************************************************************************************
@@ -130,7 +180,7 @@ Bike_Trainer_with_Power Trainer_Data;
 //! Interrupt service routine to get RTS from ANT messages
 void isr_rts_ant()
 {
-  rts_ant_received = 1;
+	rts_ant_received = 1;
 }
 
 // **************************************************************************************************
@@ -140,69 +190,166 @@ void isr_rts_ant()
 void process_packet( ANT_Packet * packet )
 {
 #if defined(USE_SERIAL_CONSOLE) && defined(ANTPLUS_DEBUG)
-  //This function internally uses Serial.println
-  //Only use it if the console is available and if the ANTPLUS library is in debug mode
-  antplus.printPacket( packet, false );
+	//This function internally uses Serial.println
+	//Only use it if the console is available and if the ANTPLUS library is in debug mode
+	antplus.printPacket( packet, false );
 #endif //defined(USE_SERIAL_CONSOLE) && defined(ANTPLUS_DEBUG)
-   
-  switch ( packet->msg_id )
-  {
-    case MESG_BROADCAST_DATA_ID:
-    {
-      const ANT_Broadcast * broadcast = (const ANT_Broadcast *) packet->data;
-      SERIAL_DEBUG_PRINT_F( "CHAN " );
-      SERIAL_DEBUG_PRINT( broadcast->channel_number );
-      SERIAL_DEBUG_PRINT_F( " " );
-      const ANT_DataPage * dp = (const ANT_DataPage *) broadcast->data;
-      
-/*	  
-      //Update received data
-      if( broadcast->channel_number == hrm_channel.channel_number )
-      {
-        hrm_channel.data_rx = true;
-        //To determine the device type -- and the data pages -- check channel setups
-        if(hrm_channel.device_type == DEVCE_TYPE_HRM)
-        {
-            switch(dp->data_page_number)
-            {
-              case DATA_PAGE_HEART_RATE_0:
-              case DATA_PAGE_HEART_RATE_0ALT:
-              case DATA_PAGE_HEART_RATE_1:
-              case DATA_PAGE_HEART_RATE_1ALT:
-              case DATA_PAGE_HEART_RATE_2:
-              case DATA_PAGE_HEART_RATE_2ALT:
-              case DATA_PAGE_HEART_RATE_3:
-              case DATA_PAGE_HEART_RATE_3ALT:
-              case DATA_PAGE_HEART_RATE_4:
-              case DATA_PAGE_HEART_RATE_4ALT:
-              {
-                //As we only care about the computed heart rate
-                // we use a same struct for all HRM pages
-                const ANT_HRMDataPage * hrm_dp = (const ANT_HRMDataPage *) dp;
-                SERIAL_DEBUG_PRINT_F( "HR[any_page] : BPM = ");
-                SERIAL_DEBUG_PRINTLN( hrm_dp->computed_heart_rate );
-              }
-              break;
-  
-              default:
-                  SERIAL_DEBUG_PRINT_F(" HRM DP# ");
-                  SERIAL_DEBUG_PRINTLN( dp->data_page_number );
-                break;
-            }
-        }
-    }
-*/
 
-    break;
-    }
-    
-    default:
-      SERIAL_DEBUG_PRINTLN_F("Non-broadcast data received.");
-      break;
-  }
+	switch ( packet->msg_id )
+	{
+	case MESG_BROADCAST_DATA_ID:
+	{
+		break;
+	}
+
+	case MESG_ACKNOWLEDGED_DATA_ID:
+	{
+		const ANT_Broadcast * broadcast = (const ANT_Broadcast *) packet->data;
+		SERIAL_DEBUG_PRINT_F( "CHAN " );
+		SERIAL_DEBUG_PRINT( broadcast->channel_number );
+		SERIAL_DEBUG_PRINT_F( " " );
+		const ANT_DataPage * dp = (const ANT_DataPage *) broadcast->data;
+		
+		//Update received data
+		if( broadcast->channel_number == fitness_channel.channel_number )
+		{
+			fitness_channel.data_rx = true;
+			//To determine the device type -- and the data pages -- check channel setups
+			if(fitness_channel.device_type == DEVCE_TYPE_FITNESS_EQUIPMENT)
+			{
+				switch(dp->data_page_number)
+				{
+					case DATA_PAGE_FITNESS_BASIC_RESISTANCE: //Data Page 48 (0x30)
+					{
+						const ANT_Fitness_Basic_Resistance_DataPage * fitness_dp = (const ANT_Fitness_Basic_Resistance_DataPage *) dp;						
+						SERIAL_DEBUG_PRINT_F( "Fitness Page 48, Basic, Resistance = ");	
+						SERIAL_DEBUG_PRINT( (fitness_dp->total_resistance)/2 );
+						SERIAL_DEBUG_PRINTLN_F("%");
+						#if DEBUG_LEVEL == 0
+							SERIAL_DEBUG_0_PRINT_F( "Fitness Page 48, Basic, Resistance = ");	
+							SERIAL_DEBUG_0_PRINT( (fitness_dp->total_resistance)/2 );
+							SERIAL_DEBUG_0_PRINTLN_F("%");
+						#endif
+					}
+						break;
+						
+					case DATA_PAGE_FITNESS_TARGET_POWER: //Data Page 49 (0x31)
+					
+						SERIAL_DEBUG_PRINTLN_F("Fitness Page 49, Target Power");
+						#if DEBUG_LEVEL == 0
+							SERIAL_DEBUG_0_PRINTLN_F("Fitness Page 49, Target Power");
+						#endif
+						break;
+						
+					case DATA_PAGE_TRACK_RESISTANCE: //Data Page 51 (0x33)		
+						SERIAL_DEBUG_PRINTLN_F( "Fitness Page 51, Track Resistance");
+						#if DEBUG_LEVEL == 0
+							SERIAL_DEBUG_0_PRINTLN_F("Fitness Page 49, Track Resistance");
+						#endif						
+						break;	
+						
+					default:
+						SERIAL_DEBUG_PRINT_F(" Fitness DP# ");
+						SERIAL_DEBUG_PRINTLN_F( dp->data_page_number );
+						break;							
+				}
+			}
+		}
+	break;
+	}		
+	default:
+		SERIAL_DEBUG_PRINTLN_F("Non-broadcast data received.");
+		break;
+	}
+}
+
+// **************************************************************************************************
+// ************************************  Power Function  ********************************************
+// **************************************************************************************************
+void Update_Power(uint16_t INST_power)
+{
+	Trainer_Data.ANT_INST_power = INST_power;
+	Trainer_Data.ANT_power = Trainer_Data.ANT_power + INST_power;	
+}
+
+void Update_Cadence(uint16_t INST_cadence)
+{
+	Trainer_Data.ANT_icad = INST_cadence;
+}
+
+void Send_Page25()
+{
+	if (Trainer_Data.Event_Count < 255)
+		Trainer_Data.Event_Count++;
+	else
+		Trainer_Data.Event_Count = 0;
+	
+	ANT_Fitness_Specific_Trainer_Data_struct Trainer_Data_Packet;
+		Trainer_Data_Packet.data_page_number = DATA_PAGE_SPECIFIC_TRAINER_DATA_PAGE;	  
+		Trainer_Data_Packet.update_event_count = Trainer_Data.Event_Count;
+		Trainer_Data_Packet.instantaneous_cadence = Trainer_Data.ANT_icad;
+		Trainer_Data_Packet.accumulated_power_LSB = byte(Trainer_Data.ANT_power & 0xFF);
+		Trainer_Data_Packet.accumulated_power_MSB = byte((Trainer_Data.ANT_power >> 8) & 0xFF);
+		Trainer_Data_Packet.instantaneous_power_LSB = byte(Trainer_Data.ANT_INST_power & 0xFF);
+		Trainer_Data_Packet.instantaneous_power_MSB = byte((Trainer_Data.ANT_INST_power >> 8) & 0b00001111);
+		Trainer_Data_Packet.trainer_status_bit_field = 0b0000;
+		Trainer_Data_Packet.flags_bit_field = 0b00100000;
+
+	antplus.send(MESG_BROADCAST_DATA_ID,MESG_INVALID_ID,9,0,
+		Trainer_Data_Packet.data_page_number, Trainer_Data_Packet.update_event_count, Trainer_Data_Packet.instantaneous_cadence, 
+		Trainer_Data_Packet.accumulated_power_LSB, Trainer_Data_Packet.accumulated_power_MSB, Trainer_Data_Packet.instantaneous_power_LSB, 
+		Trainer_Data_Packet.instantaneous_power_MSB, Trainer_Data_Packet.flags_bit_field);		
+}
+
+void Send_Page16()
+{
+	ANT_Fitness_General_FE_Data_struct FE_Data_Packet;
+		FE_Data_Packet.data_page_number = GENERAL_FE_DATA_PAGE;
+		FE_Data_Packet.equipment_type_bit_field = 0b00011001; //bits 0-4 = 25 = Trainer
+		FE_Data_Packet.elapsed_time = highByte(millis() / 20); //number of 0.25 seconds since start of program
+		FE_Data_Packet.distance_traveled = 0xFF;
+		FE_Data_Packet.speed_lsb = 0xFF;
+		FE_Data_Packet.speed_msb = 0xFF;
+		FE_Data_Packet.heart_rate = 0xFF; 
+		FE_Data_Packet.capabilities_bit_field = 0b00000000; //XXXX3210 Bits:0-1 = No Heart Rate, Bit:2 = No Distance, Bit:3=Real Speed
+		FE_Data_Packet.fe_state_bit_field = 0b00100000; //3210XXXX Bit:0:2 = FE State, Ready, Bit:3=Lap Toggle
+	
+	antplus.send(MESG_BROADCAST_DATA_ID,MESG_INVALID_ID,9,0,
+		FE_Data_Packet.data_page_number, FE_Data_Packet.equipment_type_bit_field, FE_Data_Packet.elapsed_time,
+		FE_Data_Packet.distance_traveled, FE_Data_Packet.speed_lsb, FE_Data_Packet.speed_msb, FE_Data_Packet.heart_rate,
+		(FE_Data_Packet.capabilities_bit_field | FE_Data_Packet.fe_state_bit_field));
+}
+
+void Send_Page80() //Common Data Page 80: Manufacturer’s Information
+{
+	//byte:0 - Data Page Number (0x50)
+	//byte:1 - Reserved - (0xFF)
+	//byte:2 - Reserved - (0xFF)
+	//byte:3 - HW Revision (0x01) Using 1
+	//byte:4 - Manufacturer ID LSB (0x01) Using 1
+	//byte:5 - Manufacturer ID MSB (0x00)
+	//byte:6 - Model Number LSB (0x02)
+	//byte:7 - Model Number MSB (0x00)
+	
+	antplus.send(MESG_BROADCAST_DATA_ID,MESG_INVALID_ID,9,0,MANUFACTURES_INFORMATION_DATA_PAGE,
+		0xFF,0xFF,0x01,0x01,0x00,0x02,0x00);
 }
 
 
+void Send_Page81() //Common Page 81 (0x51) – Product Information
+{
+	//byte:0 - Data Page Number (0x51)
+	//byte:1 - Reserved - (0xFF)
+	//byte:2 - SW Revision (Supplemental) - (0xFF)
+	//byte:3 - SW Revision (Main) (0x01) Using 1
+	//byte:4 - Serial Number (Bits 0 – 7) (0x01) 
+	//byte:5 - Serial Number (Bits 8 – 15) (0x00)
+	//byte:6 - Serial Number (Bits 16 – 23) (0x00)
+	//byte:7 - Serial Number (Bits 24 – 31) (0x00)
+	
+	antplus.send(MESG_BROADCAST_DATA_ID,MESG_INVALID_ID,9,0,PRODUCT_INFORMATION_DATA_PAGE,
+		0xFF,0xFF,0x01,0x01,0x00,0x00,0x00);
+}
 
 
 // **************************************************************************************************
@@ -210,40 +357,45 @@ void process_packet( ANT_Packet * packet )
 // **************************************************************************************************
 void setup()
 {
-  delay(2000);
+	delay(2000);
 #if defined(USE_SERIAL_CONSOLE)
-  Serial.begin(115200); 
+	Serial.begin(115200); 
 #endif //defined(USE_SERIAL_CONSOLE)
 
-  SERIAL_DEBUG_PRINTLN("ANTPlus Trainer!");
-  SERIAL_DEBUG_PRINTLN_F("Setup.");
+	SERIAL_DEBUG_PRINTLN("ANTPlus Trainer!");
+	SERIAL_DEBUG_PRINTLN_F("Setup.");
 
-  SERIAL_DEBUG_PRINTLN_F("ANT+ Config.");
+	SERIAL_DEBUG_PRINTLN_F("ANT+ Config.");
 
-  //We setup an interrupt to detect when the RTS is received from the ANT chip.
-  //This is a 50 usec HIGH signal at the end of each valid ANT message received from the host at the chip
-  attachInterrupt(digitalPinToInterrupt(RTS_PIN), isr_rts_ant, RISING);
+	//We setup an interrupt to detect when the RTS is received from the ANT chip.
+	//This is a 50 usec HIGH signal at the end of each valid ANT message received from the host at the chip
+	attachInterrupt(digitalPinToInterrupt(RTS_PIN), isr_rts_ant, RISING);
 
 
 #if defined(ANTPLUS_ON_HW_UART)
-  //Using hardware UART
-  Serial1.begin(ANTPLUS_BAUD_RATE); 
-  antplus.begin( Serial1 );
+	//Using hardware UART
+	Serial1.begin(ANTPLUS_BAUD_RATE); 
+	antplus.begin( Serial1 );
 #else
-  //Using soft serial
-  ant_serial.begin( ANTPLUS_BAUD_RATE ); 
-  antplus.begin( ant_serial );
+	//Using soft serial
+	ant_serial.begin( ANTPLUS_BAUD_RATE ); 
+	antplus.begin( ant_serial );
 #endif
 
-  SERIAL_DEBUG_PRINTLN_F("ANT+ Config Finished.");
-  SERIAL_DEBUG_PRINTLN_F("Setup Finished.");
-  
-//Setup Bike Trainer
-Trainer_Data.ANT_event = 0;
-Trainer_Data.Event_Count = 0;
-Trainer_Data.ANT_INST_power = 0;
-Trainer_Data.ANT_power =0;
-Trainer_Data.ANT_icad = 0;
+	SERIAL_DEBUG_PRINTLN_F("ANT+ Config Finished.");
+	SERIAL_DEBUG_PRINTLN_F("Setup Finished.");
+
+	//Initialize Bike Trainer
+	Trainer_Data.ANT_event = 0;
+	Trainer_Data.Event_Count = 0;
+	Trainer_Data.ANT_INST_power = 0;
+	Trainer_Data.ANT_power =0;
+	Trainer_Data.ANT_icad = 0;
+	
+testpower = 0;	
+message_step = 0;
+current_time_ms = millis();
+last_time_ms = current_time_ms;
 
 }
 
@@ -253,97 +405,117 @@ Trainer_Data.ANT_icad = 0;
 
 void loop()
 {
-  byte packet_buffer[ANT_MAX_PACKET_LEN];
-  ANT_Packet * packet = (ANT_Packet *) packet_buffer;
-  MESSAGE_READ ret_val = MESSAGE_READ_NONE;
-  
-  if(rts_ant_received == 1)
-  {
-    SERIAL_DEBUG_PRINTLN_F("Received RTS Interrupt. ");
-    antplus.rTSHighAssertion();
-    //Clear the ISR flag
-    rts_ant_received = 0;
-  }
+	current_time_ms = millis();
+	
+	byte packet_buffer[ANT_MAX_PACKET_LEN];
+	ANT_Packet * packet = (ANT_Packet *) packet_buffer;
+	MESSAGE_READ ret_val = MESSAGE_READ_NONE;
 
-  //Read messages until we get a none
-  while( (ret_val = antplus.readPacket(packet, ANT_MAX_PACKET_LEN, 0 )) != MESSAGE_READ_NONE )
-  {
-    if((ret_val == MESSAGE_READ_EXPECTED) || (ret_val == MESSAGE_READ_OTHER))
-    {
-      SERIAL_DEBUG_PRINT_F( "ReadPacket success = " );
-      if( (ret_val == MESSAGE_READ_EXPECTED) )
-      {
-        SERIAL_DEBUG_PRINTLN_F( "Expected packet" );
-      }
-      else
-      if( (ret_val == MESSAGE_READ_OTHER) )
-      {
-        SERIAL_DEBUG_PRINTLN_F( "Other packet" );
-      }
-      process_packet(packet);
-    }
-    else
-    {
-      SERIAL_DEBUG_PRINT_F( "ReadPacket Error = " );
-      SERIAL_DEBUG_PRINTLN( ret_val );
-      if(ret_val == MESSAGE_READ_ERROR_MISSING_SYNC)
-      {
-        //Nothing -- allow a re-read to get back in sync
-      }
-      else
-      if(ret_val == MESSAGE_READ_ERROR_BAD_CHECKSUM)
-      {
-        //Nothing -- fully formed package just bit errors
-      }
-      else
-      {
-        break;
-      }
-    }
-  }
-
-
-  if(fitness_channel.channel_establish != ANT_CHANNEL_ESTABLISH_COMPLETE)
-  {
-    antplus.progress_setup_channel( &fitness_channel );
-    if(fitness_channel.channel_establish == ANT_CHANNEL_ESTABLISH_COMPLETE)
-    {
-      SERIAL_DEBUG_PRINT( fitness_channel.channel_number );
-      SERIAL_DEBUG_PRINTLN_F( " - Established." );
-    }
-    else
-    if(fitness_channel.channel_establish == ANT_CHANNEL_ESTABLISH_PROGRESSING)
-    {
-      SERIAL_DEBUG_PRINT( fitness_channel.channel_number );
-      SERIAL_DEBUG_PRINTLN_F( " - Progressing." );
-    }
-    else
-    {
-      SERIAL_DEBUG_PRINT( fitness_channel.channel_number );
-      SERIAL_DEBUG_PRINTLN_F( " - ERROR!" );
-    }
-  }
-  
- //if all is good, start sending fake data of ba
-  if(fitness_channel.channel_establish == ANT_CHANNEL_ESTABLISH_COMPLETE)
+	if(rts_ant_received == 1)
 	{
-	  ANT_Fitness_Specific_Trainer_Data_struct Trainer_Data;
-	  Trainer_Data.data_page_number = DATA_PAGE_SPECIFIC_TRAINER_DATA_PAGE;	  
-	  Trainer_Data.update_event_count = 0x01;
-	  Trainer_Data.instantaneous_cadence = 0x10;
-	  Trainer_Data.accumulated_power_LSB = 0x20;
-	  Trainer_Data.accumulated_power_MSB = 0x30;
-	  Trainer_Data.instantaneous_power_LSB = 0x40;
-	  Trainer_Data.instantaneous_power_MSB = 0x50;
-	  Trainer_Data.trainer_status_bit_field = 0x60;
-	  Trainer_Data.flags_bit_field = 0x00;
-	  
-	  SERIAL_DEBUG_PRINTLN_F( "Sending" );
-	  antplus.send(MESG_BROADCAST_DATA_ID,MESG_INVALID_ID,9,0,
-		  Trainer_Data.data_page_number, Trainer_Data.update_event_count, Trainer_Data.instantaneous_cadence, 
-		  Trainer_Data.accumulated_power_LSB, Trainer_Data.accumulated_power_MSB, Trainer_Data.instantaneous_power_LSB, 
-		  Trainer_Data.instantaneous_power_MSB, Trainer_Data.trainer_status_bit_field);
-	  delay(2000);
+		SERIAL_DEBUG_PRINTLN_F("Received RTS Interrupt. ");
+		antplus.rTSHighAssertion();
+		//Clear the ISR flag
+		rts_ant_received = 0;
+	}
+
+	//Read messages until we get a none
+	while( (ret_val = antplus.readPacket(packet, ANT_MAX_PACKET_LEN, 0 )) != MESSAGE_READ_NONE )
+	{
+		if((ret_val == MESSAGE_READ_EXPECTED) || (ret_val == MESSAGE_READ_OTHER))
+		{
+			SERIAL_DEBUG_PRINT_F( "ReadPacket success = " );
+			if( (ret_val == MESSAGE_READ_EXPECTED) )
+			{
+				SERIAL_DEBUG_PRINTLN_F( "Expected packet" );
+			}
+			else
+			if( (ret_val == MESSAGE_READ_OTHER) )
+			{
+				SERIAL_DEBUG_PRINTLN_F( "Other packet" );
+			}
+			process_packet(packet);
+		}
+		else
+		{
+			SERIAL_DEBUG_PRINT_F( "ReadPacket Error = " );
+			SERIAL_DEBUG_PRINTLN( ret_val );
+			if(ret_val == MESSAGE_READ_ERROR_MISSING_SYNC)
+			{
+				//Nothing -- allow a re-read to get back in sync
+			}
+			else
+			if(ret_val == MESSAGE_READ_ERROR_BAD_CHECKSUM)
+			{
+				//Nothing -- fully formed package just bit errors
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+
+
+	if(fitness_channel.channel_establish != ANT_CHANNEL_ESTABLISH_COMPLETE)
+	{
+		antplus.progress_setup_channel( &fitness_channel );
+		if(fitness_channel.channel_establish == ANT_CHANNEL_ESTABLISH_COMPLETE)
+		{
+			SERIAL_DEBUG_PRINT( fitness_channel.channel_number );
+			SERIAL_DEBUG_PRINTLN_F( " - Established." );
+		}
+		else
+		if(fitness_channel.channel_establish == ANT_CHANNEL_ESTABLISH_PROGRESSING)
+		{
+			SERIAL_DEBUG_PRINT( fitness_channel.channel_number );
+			SERIAL_DEBUG_PRINTLN_F( " - Progressing." );
+		}
+		else
+		{
+			SERIAL_DEBUG_PRINT( fitness_channel.channel_number );
+			SERIAL_DEBUG_PRINTLN_F( " - ERROR!" );
+		}
+	}
+
+	//if all is good, start sending fake data
+	if(fitness_channel.channel_establish == ANT_CHANNEL_ESTABLISH_COMPLETE)
+	{
+		if ((current_time_ms - last_time_ms) >= PAGE_SEND_DELAY_MS) 
+		{
+			last_time_ms = current_time_ms;
+			if (message_step == 132)
+				message_step = 0;
+			
+			testpower = testpower + 1;
+			Update_Power(testpower);
+			Update_Cadence(testpower);
+			
+			if ((message_step % 130) == 0 || ((message_step-1) % 130) == 0)
+				Send_Page81(); //(0x50)
+			else if ((message_step % 64) == 0 || ((message_step-1) % 64) == 0)
+				Send_Page80(); //(0x51)
+			else if ((message_step % 5) == 0)
+				Send_Page16(); //(0x10)
+			else
+				Send_Page25(); //(0x19)
+			
+			
+/*			
+			switch (message_step)  
+			{
+				case 0:
+					SERIAL_DEBUG_PRINTLN_F( "Sending Page 16" );
+					Send_Page16(); //0x10
+					break;
+				case 1:
+					SERIAL_DEBUG_PRINTLN_F( "Sending Page 25" );
+					Send_Page25(); //0x19		
+					break;
+			}
+*/
+			message_step++;		
+		}
 	}  
 }
 

@@ -434,7 +434,7 @@ ANT_CHANNEL_ESTABLISH ANTPlus::progress_setup_channel( ANT_Channel * channel )
     //   Device Number MSB: 0 for a slave to match any device
     //   Device Type: bit 7 0 for pairing request bit 6..0 for device type
     //   Transmission Type: 0 to match any transmission type
-    sent_ok = send(MESG_CHANNEL_ID_ID, MESG_RESPONSE_EVENT_ID/*Expected response*/, 5, channel->channel_number, 0, 0, channel->device_type, 0);
+    sent_ok = send(MESG_CHANNEL_ID_ID, MESG_RESPONSE_EVENT_ID/*Expected response*/, 5, channel->channel_number, channel->device_number_MSB, channel->device_number_LSB, channel->device_type, 0);
   }
   else
   if(channel->state_counter == 4)

@@ -25,8 +25,8 @@
 
 #define ANTPLUS_MINIMAL_RECEIVE_BUFFER_FOR_BROADCAST_DATA //<! Saves SRAM if we only expect to be receiving ANT+ HRM and SDM buffers.
 
-#define ANTPLUS_DEBUG //!< Prints various debug messages. Disable here or via using NDEBUG externally
-#define ANTPLUS_MSG_STR_DECODE //<! Stringiser for various codes for easier debugging
+//#define ANTPLUS_DEBUG //!< Prints various debug messages. Disable here or via using NDEBUG externally
+//#define ANTPLUS_MSG_STR_DECODE //<! Stringiser for various codes for easier debugging
 
 #if defined(NDEBUG)
 #undef ANTPLUS_DEBUG
@@ -48,8 +48,6 @@
 //BK - Hack to save the teeniest of SRAM space....
 //#define ANT_DEVICE_NUMBER_CHANNELS (8) //!< nRF24AP2 has an 8 channel version.
 #define ANT_DEVICE_NUMBER_CHANNELS (1) //!< nRF24AP2 has an 8 channel version. However -- it seems there are issues bringing up two channels with this code. TODO: Review and fix.
-
-
 
 //TODO: Make this into a class
 #define DATA_PAGE_HEART_RATE_0              (0x00)
@@ -73,9 +71,11 @@
 //Fitness Equipment
 #define DATA_PAGE_FITNESS_BASIC_RESISTANCE  (0x30)
 #define DATA_PAGE_FITNESS_TARGET_POWER		(0x31)
-#define DATA_PAGE_TRACK_RESISTANE			(0x33)
-#define DATA_PAGE_SPECIFIC_TRAINER_DATA_PAGE (0X19)
-#define GENERAL_FE_DATA						(0X10)
+#define DATA_PAGE_TRACK_RESISTANCE			(0x33)
+#define DATA_PAGE_SPECIFIC_TRAINER_DATA_PAGE (0x19)
+#define GENERAL_FE_DATA_PAGE				(0x10)
+#define MANUFACTURES_INFORMATION_DATA_PAGE	(0x50)
+#define PRODUCT_INFORMATION_DATA_PAGE		(0x51)
 
 
 #define PUBLIC_NETWORK     (  0) //slave tyoe
@@ -239,13 +239,20 @@ typedef struct ANT_Fitness_General_FE_Data_struct
 	byte speed_msb;
 	byte heart_rate;
 	byte capabilities_bit_field;
+	byte fe_state_bit_field;
 } ANT_Fitness_General_FE_Data_DataPage;
 
 //Data Page 48 (0x30)
 typedef struct ANT_Fitness_Basic_Resistance_DataPage_struct
 {
 	byte data_page_number;
-	byte Total_Resistance;	
+	byte reserved1;
+	byte reserved2;
+	byte reserved3;
+	byte reserved4;
+	byte reserved5;
+	byte reserved6;
+	byte total_resistance;	
 } ANT_Fitness_Basic_Resistance_DataPage;
 
 //Data Page 49 (0x31)
@@ -297,6 +304,8 @@ typedef struct ANT_Channel_struct
    int device_type;
    int freq;
    int period;
+   int device_number_MSB;
+   int device_number_LSB;
    unsigned char ant_net_key[8];
    
    ANT_CHANNEL_ESTABLISH channel_establish; //Read-only from external
