@@ -51,7 +51,7 @@ Wiring to the Arduino Pro Mini 3v3 can be seen in 'antplus' below.
 
 //F() stores static strings that come into existence here in flash (makes things a bit more stable)
 #ifdef SERIAL_DEBUG
-	#if DEBUG_LEVEL >= 4
+	#if DEBUG_LEVEL == 4
 		#define SERIAL_DEBUG_PRINT(x)  	    	(Serial.print(x))
 		#define SERIAL_DEBUG_PRINTLN(x)	    	(Serial.println(x))
 		#define SERIAL_DEBUG_PRINT_F(x)  	  	(Serial.print(F(x)))
@@ -65,8 +65,8 @@ Wiring to the Arduino Pro Mini 3v3 can be seen in 'antplus' below.
 		#define SERIAL_DEBUG_PRINTLN_F(x)
 		#define SERIAL_DEBUG_PRINT2(x,y)
 		#define SERIAL_DEBUG_PRINTLN2(x,y)
-	#endif	
-	#if DEBUG_LEVEL >= 0
+	#endif
+	#if DEBUG_LEVEL == 0
 		#define SERIAL_DEBUG_0_PRINT(x)  	    (Serial.print(x))
 		#define SERIAL_DEBUG_0_PRINTLN(x)	    (Serial.println(x))
 		#define SERIAL_DEBUG_0_PRINT_F(x)  	  	(Serial.print(F(x)))
@@ -80,7 +80,7 @@ Wiring to the Arduino Pro Mini 3v3 can be seen in 'antplus' below.
 		#define SERIAL_DEBUG_0_PRINTLN_F(x)			
 		#define SERIAL_DEBUG_0_PRINT2(x,y)  		
 		#define SERIAL_DEBUG_0_PRINTLN2(x,y)
-	#endif		
+	#endif
 #endif
 
 #ifndef SERIAL_DEBUG
@@ -221,36 +221,52 @@ void process_packet( ANT_Packet * packet )
 				{
 					case DATA_PAGE_FITNESS_BASIC_RESISTANCE: //Data Page 48 (0x30)
 					{
-						const ANT_Fitness_Basic_Resistance_DataPage * fitness_dp = (const ANT_Fitness_Basic_Resistance_DataPage *) dp;						
+						const ANT_Fitness_Basic_Resistance_DataPage * fitness_dp = (const ANT_Fitness_Basic_Resistance_DataPage *) dp;	
+						Trainer_Data.Target_Total_Resistance = (fitness_dp->total_resistance);
 						SERIAL_DEBUG_PRINT_F( "Fitness Page 48, Basic, Resistance = ");	
-						SERIAL_DEBUG_PRINT( (fitness_dp->total_resistance)/2 );
-						SERIAL_DEBUG_PRINTLN_F("%");
+						SERIAL_DEBUG_PRINTLN( Trainer_Data.Target_Total_Resistance );
 						#if DEBUG_LEVEL == 0
 							SERIAL_DEBUG_0_PRINT_F( "Fitness Page 48, Basic, Resistance = ");	
-							SERIAL_DEBUG_0_PRINT( (fitness_dp->total_resistance)/2 );
-							SERIAL_DEBUG_0_PRINTLN_F("%");
+							SERIAL_DEBUG_0_PRINTLN( Trainer_Data.Target_Total_Resistance );
 						#endif
 					}
-						break;
+					break;
 						
 					case DATA_PAGE_FITNESS_TARGET_POWER: //Data Page 49 (0x31)
-					
-						SERIAL_DEBUG_PRINTLN_F("Fitness Page 49, Target Power");
+					{
+						const ANT_Fitness_Target_Power_DataPage * fitness_dp = (const ANT_Fitness_Target_Power_DataPage *) dp;	
+						Trainer_Data.Target_Power = (unsigned int)(fitness_dp->Target_Power_MSB) << 8 | (fitness_dp->Target_Power_LSB);
+						SERIAL_DEBUG_PRINT_F("Fitness Page 49, Target Power, Target Power = ");
+						SERIAL_DEBUG_PRINTLN( Trainer_Data.Target_Power );
 						#if DEBUG_LEVEL == 0
-							SERIAL_DEBUG_0_PRINTLN_F("Fitness Page 49, Target Power");
+							SERIAL_DEBUG_0_PRINT_F("Fitness Page 49, Target Power, Target Power = ");
+							SERIAL_DEBUG_0_PRINTLN( Trainer_Data.Target_Power );
 						#endif
-						break;
+					}
+					break;
 						
 					case DATA_PAGE_TRACK_RESISTANCE: //Data Page 51 (0x33)		
-						SERIAL_DEBUG_PRINTLN_F( "Fitness Page 51, Track Resistance");
+					{
+						const ANT_Fitness_Track_Resistance_DataPage * fitness_dp = (const ANT_Fitness_Track_Resistance_DataPage *) dp;
+						Trainer_Data.Simulated_Grade = (unsigned int)(fitness_dp->Grade_of_Simulated_Track_MSB) << 8 | (fitness_dp->Grade_of_Simulated_Track_LSB);
+						Trainer_Data.Rolling_Resistance = fitness_dp->Coefficient_of_Rolling_Resistance;
+						SERIAL_DEBUG_PRINT_F( "Fitness Page 51, Track Resistance, Grade = ");
+						SERIAL_DEBUG_PRINT( Trainer_Data.Simulated_Grade );
+						SERIAL_DEBUG_PRINT_F( " Rolling Resistance = " );
+						SERIAL_DEBUG_PRINTLN( Trainer_Data.Rolling_Resistance );						
+						
 						#if DEBUG_LEVEL == 0
-							SERIAL_DEBUG_0_PRINTLN_F("Fitness Page 49, Track Resistance");
-						#endif						
-						break;	
+							SERIAL_DEBUG_0_PRINT_F( "Fitness Page 51, Track Resistance, Grade = ");
+							SERIAL_DEBUG_0_PRINT( Trainer_Data.Simulated_Grade );
+							SERIAL_DEBUG_0_PRINT_F( " Rolling Resistance = " );
+							SERIAL_DEBUG_0_PRINTLN( Trainer_Data.Rolling_Resistance );							
+						#endif	
+					}
+					break;	
 						
 					default:
 						SERIAL_DEBUG_PRINT_F(" Fitness DP# ");
-						SERIAL_DEBUG_PRINTLN_F( dp->data_page_number );
+						SERIAL_DEBUG_PRINTLN( dp->data_page_number );
 						break;							
 				}
 			}
@@ -293,12 +309,14 @@ void Send_Page25()
 		Trainer_Data_Packet.instantaneous_power_LSB = byte(Trainer_Data.ANT_INST_power & 0xFF);
 		Trainer_Data_Packet.instantaneous_power_MSB = byte((Trainer_Data.ANT_INST_power >> 8) & 0b00001111);
 		Trainer_Data_Packet.trainer_status_bit_field = 0b0000;
-		Trainer_Data_Packet.flags_bit_field = 0b00100000;
+		Trainer_Data_Packet.flags_bit_field = 0b0000;
+		Trainer_Data_Packet.FE_state_bit_field = 0b0011;
 
 	antplus.send(MESG_BROADCAST_DATA_ID,MESG_INVALID_ID,9,0,
 		Trainer_Data_Packet.data_page_number, Trainer_Data_Packet.update_event_count, Trainer_Data_Packet.instantaneous_cadence, 
 		Trainer_Data_Packet.accumulated_power_LSB, Trainer_Data_Packet.accumulated_power_MSB, Trainer_Data_Packet.instantaneous_power_LSB, 
-		Trainer_Data_Packet.instantaneous_power_MSB, Trainer_Data_Packet.flags_bit_field);		
+		(Trainer_Data_Packet.instantaneous_power_MSB | (Trainer_Data_Packet.trainer_status_bit_field << 4)), 
+		(Trainer_Data_Packet.flags_bit_field | (Trainer_Data_Packet.FE_state_bit_field << 4)) );		
 }
 
 void Send_Page16()
@@ -306,18 +324,18 @@ void Send_Page16()
 	ANT_Fitness_General_FE_Data_struct FE_Data_Packet;
 		FE_Data_Packet.data_page_number = GENERAL_FE_DATA_PAGE;
 		FE_Data_Packet.equipment_type_bit_field = 0b00011001; //bits 0-4 = 25 = Trainer
-		FE_Data_Packet.elapsed_time = highByte(millis() / 20); //number of 0.25 seconds since start of program
+		FE_Data_Packet.elapsed_time = (byte)(millis() / 250); //number of 0.25 seconds since start of program
 		FE_Data_Packet.distance_traveled = 0xFF;
 		FE_Data_Packet.speed_lsb = 0xFF;
 		FE_Data_Packet.speed_msb = 0xFF;
 		FE_Data_Packet.heart_rate = 0xFF; 
-		FE_Data_Packet.capabilities_bit_field = 0b00000000; //XXXX3210 Bits:0-1 = No Heart Rate, Bit:2 = No Distance, Bit:3=Real Speed
-		FE_Data_Packet.fe_state_bit_field = 0b00100000; //3210XXXX Bit:0:2 = FE State, Ready, Bit:3=Lap Toggle
+		FE_Data_Packet.capabilities_bit_field = 0b0000; //3210 Bits:0-1 = No Heart Rate, Bit:2 = No Distance, Bit:3=Real Speed
+		FE_Data_Packet.fe_state_bit_field = 0b0011; //3210 Bit:0:2 = FE State, Ready, Bit:3=Lap Toggle
 	
 	antplus.send(MESG_BROADCAST_DATA_ID,MESG_INVALID_ID,9,0,
 		FE_Data_Packet.data_page_number, FE_Data_Packet.equipment_type_bit_field, FE_Data_Packet.elapsed_time,
 		FE_Data_Packet.distance_traveled, FE_Data_Packet.speed_lsb, FE_Data_Packet.speed_msb, FE_Data_Packet.heart_rate,
-		(FE_Data_Packet.capabilities_bit_field | FE_Data_Packet.fe_state_bit_field));
+		(FE_Data_Packet.capabilities_bit_field | (FE_Data_Packet.fe_state_bit_field << 4)));
 }
 
 void Send_Page80() //Common Data Page 80: Manufacturer’s Information
@@ -326,13 +344,13 @@ void Send_Page80() //Common Data Page 80: Manufacturer’s Information
 	//byte:1 - Reserved - (0xFF)
 	//byte:2 - Reserved - (0xFF)
 	//byte:3 - HW Revision (0x01) Using 1
-	//byte:4 - Manufacturer ID LSB (0x01) Using 1
+	//byte:4 - Manufacturer ID LSB (0xFF) Use 0x00FF for development
 	//byte:5 - Manufacturer ID MSB (0x00)
 	//byte:6 - Model Number LSB (0x02)
 	//byte:7 - Model Number MSB (0x00)
 	
 	antplus.send(MESG_BROADCAST_DATA_ID,MESG_INVALID_ID,9,0,MANUFACTURES_INFORMATION_DATA_PAGE,
-		0xFF,0xFF,0x01,0x01,0x00,0x02,0x00);
+		0xFF,0xFF,0x01,0xFF,0x00,0x02,0x00);
 }
 
 
@@ -488,14 +506,14 @@ void loop()
 				message_step = 0;
 			
 			testpower = testpower + 1;
-			Update_Power(testpower);
-			Update_Cadence(testpower);
+			Update_Power(300);
+			Update_Cadence(80);
 			
 			if ((message_step % 130) == 0 || ((message_step-1) % 130) == 0)
 				Send_Page81(); //(0x50)
 			else if ((message_step % 64) == 0 || ((message_step-1) % 64) == 0)
 				Send_Page80(); //(0x51)
-			else if ((message_step % 5) == 0)
+			else if ((message_step % 3) == 0)
 				Send_Page16(); //(0x10)
 			else
 				Send_Page25(); //(0x19)

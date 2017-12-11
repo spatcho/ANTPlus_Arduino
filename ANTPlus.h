@@ -226,6 +226,7 @@ typedef struct ANT_Fitness_Specific_Trainer_Data_struct
 	byte instantaneous_power_MSB;
 	byte trainer_status_bit_field;
 	byte flags_bit_field;	
+	byte FE_state_bit_field;
 } ANT_Fitness_Specific_Trainer_Data_DataPage;
 
 //Data Page 16 (0x10)
@@ -259,6 +260,11 @@ typedef struct ANT_Fitness_Basic_Resistance_DataPage_struct
 typedef struct ANT_Fitness_Target_Power_DataPage_struct
 {
 	byte data_page_number;
+	byte reserved1;
+	byte reserved2;
+	byte reserved3;
+	byte reserved4;
+	byte reserved5;	
 	byte Target_Power_LSB;	
 	byte Target_Power_MSB;
 } ANT_Fitness_Target_Power_DataPage;
@@ -267,6 +273,10 @@ typedef struct ANT_Fitness_Target_Power_DataPage_struct
 typedef struct ANT_Fitness_Track_Resistance_struct
 {
 	byte data_page_number;
+	byte reserved1;
+	byte reserved2;
+	byte reserved3;
+	byte reserved4;	
 	byte Grade_of_Simulated_Track_LSB;	
 	byte Grade_of_Simulated_Track_MSB;
 	byte Coefficient_of_Rolling_Resistance;
@@ -279,6 +289,10 @@ typedef struct Bike_Trainer_with_Power_struct
 	uint16_t ANT_INST_power;
 	uint16_t ANT_power ;
 	uint8_t ANT_icad; // Corrected Cadence
+	uint8_t Target_Total_Resistance;
+	uint16_t Target_Power;
+	uint16_t Simulated_Grade;
+	uint8_t Rolling_Resistance;
 } Bike_Trainer_with_Power;
 
 
