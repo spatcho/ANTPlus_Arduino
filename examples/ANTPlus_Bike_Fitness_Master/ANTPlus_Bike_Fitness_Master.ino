@@ -474,7 +474,6 @@ void loop()
 		}
 	}
 
-
 	if(fitness_channel.channel_establish != ANT_CHANNEL_ESTABLISH_COMPLETE)
 	{
 		antplus.progress_setup_channel( &fitness_channel );
@@ -517,21 +516,6 @@ void loop()
 				Send_Page16(); //(0x10)
 			else
 				Send_Page25(); //(0x19)
-			
-			
-/*			
-			switch (message_step)  
-			{
-				case 0:
-					SERIAL_DEBUG_PRINTLN_F( "Sending Page 16" );
-					Send_Page16(); //0x10
-					break;
-				case 1:
-					SERIAL_DEBUG_PRINTLN_F( "Sending Page 25" );
-					Send_Page25(); //0x19		
-					break;
-			}
-*/
 			message_step++;		
 		}
 	}  
