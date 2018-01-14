@@ -25,8 +25,8 @@
 
 #define ANTPLUS_MINIMAL_RECEIVE_BUFFER_FOR_BROADCAST_DATA //<! Saves SRAM if we only expect to be receiving ANT+ HRM and SDM buffers.
 
-//#define ANTPLUS_DEBUG //!< Prints various debug messages. Disable here or via using NDEBUG externally
-//#define ANTPLUS_MSG_STR_DECODE //<! Stringiser for various codes for easier debugging
+#define ANTPLUS_DEBUG //!< Prints various debug messages. Disable here or via using NDEBUG externally
+#define ANTPLUS_MSG_STR_DECODE //<! Stringiser for various codes for easier debugging
 
 #if defined(NDEBUG)
 #undef ANTPLUS_DEBUG
@@ -76,6 +76,11 @@
 #define GENERAL_FE_DATA_PAGE				(0x10)
 #define MANUFACTURES_INFORMATION_DATA_PAGE	(0x50)
 #define PRODUCT_INFORMATION_DATA_PAGE		(0x51)
+#define DATA_PAGE_FITNESS_EQUIPMENT_REQUEST	(0x46)
+#define FITNESS_EQUIPMENT_TRAINER_CAPABILITIES_PAGE	(0x36)
+#define FITNESS_EQUIPMENT_RESIST_MODE_CAPABILITY    (0x01)
+#define FITNESS_EQUIPMENT_POWER_MODE_CAPABILITY     (0x02)
+#define FITNESS_EQUIPMENT_SIMUL_MODE_CAPABILITY     (0x04)
 
 
 #define PUBLIC_NETWORK     (  0) //slave tyoe
@@ -281,6 +286,20 @@ typedef struct ANT_Fitness_Track_Resistance_struct
 	byte Grade_of_Simulated_Track_MSB;
 	byte Coefficient_of_Rolling_Resistance;
 } ANT_Fitness_Track_Resistance_DataPage;
+
+//Data Page 70 (0x46)
+// 9B ACK_DATA[0x4F] : 0x00 46 FF FF FF FF 01 36 01
+typedef struct ANT_Fitness_Equipment_Request_struct
+{
+	byte data_page_number;
+	byte reserved1;
+	byte reserved2;
+	byte reserved3;
+	byte reserved4;	
+	byte requested_response; // requested transmission response (1 time only)	
+	byte requested_page; // requested page
+	byte request_data_page; // request data page
+} ANT_Fitness_Equipment_Request_DataPage;
 
 typedef struct Bike_Trainer_with_Power_struct
 {

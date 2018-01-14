@@ -303,6 +303,9 @@ const char * ANTPlus::get_msg_id_str(byte msg_id)
       case MESG_CHANNEL_ID_ID:
         return "CHANNEL_ID";
 
+	  case MESG_ACKNOWLEDGED_DATA_ID:
+        return "ACK_DATA";
+
       default:
         return "...";
 

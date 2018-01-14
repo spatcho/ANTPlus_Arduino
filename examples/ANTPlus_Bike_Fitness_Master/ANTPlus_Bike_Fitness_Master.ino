@@ -19,13 +19,18 @@ RTS       | !(RESET)
 Wiring to the Arduino Pro Mini 3v3 can be seen in 'antplus' below.
 */
 
+/*
+Goldencheetah / set target power support @ https://github.com/spatcho/ANTPlus_Arduino
+Copyright Spatcho
+*/
+
 #include <Arduino.h>
 
 //#define NDEBUG
 #define __ASSERT_USE_STDERR
 #include <assert.h>
 
-#define ANTPLUS_ON_HW_UART //using a Arduino Pro Micro with "Real" USB serial. This is on Serial, nRF24AP2 will be on Serial1
+//#define ANTPLUS_ON_HW_UART //using a Arduino Pro Micro with "Real" USB serial. This is on Serial, nRF24AP2 will be on Serial1
 
 #if !defined(ANTPLUS_ON_HW_UART)
 #include <SoftwareSerial.h>
@@ -134,14 +139,14 @@ static const int RTS_PIN      = 2; //!< RTS on the nRF24AP2 module
 
 
 #if !defined(ANTPLUS_ON_HW_UART)
-static const int TX_PIN       = 8; //Using software serial for the UART
+static const int TX_PIN       = 10; //Using software serial for the UART
 static const int RX_PIN       = 9; //Ditto
 static SoftwareSerial ant_serial(TX_PIN, RX_PIN); // RXArd, TXArd -- Arduino is opposite to nRF24AP2 module
 #else
 //Using Hardware Serial (0,1) instead
 #endif
 
-static ANTPlus        antplus   = ANTPlus(RTS_PIN, 6/*SUSPEND*/, 4/*SLEEP*/, 9/*RESET*/ );
+static ANTPlus antplus = ANTPlus(RTS_PIN, 3/*SUSPEND*/, 4/*SLEEP*/, 6/*RESET*/ );
 
 static ANT_Channel fitness_channel =
 {
@@ -172,6 +177,8 @@ int message_step;
 unsigned long current_time_ms;
 unsigned long last_time_ms;
 
+//Requested data
+boolean flagged_for_Send_Page54 = false;
 
 // **************************************************************************************************
 // *********************************  ISRs  *********************************************************
@@ -264,6 +271,31 @@ void process_packet( ANT_Packet * packet )
 					}
 					break;	
 						
+              case DATA_PAGE_FITNESS_EQUIPMENT_REQUEST: //Data Page 70 (0x46)
+                {
+                  const ANT_Fitness_Equipment_Request_DataPage * fitness_dp = (const ANT_Fitness_Equipment_Request_DataPage *) dp;
+                  SERIAL_DEBUG_PRINT_F( "Fitness Page 70, Request fitness equipment, Page ");
+                  SERIAL_DEBUG_PRINT( fitness_dp->requested_page );
+				  #if DEBUG_LEVEL == 0
+                  	SERIAL_DEBUG_0_PRINT_F( "Fitness Page 70, Request fitness equipment, Page ");
+                  	SERIAL_DEBUG_0_PRINT( fitness_dp->requested_page );
+				  #endif
+                  if ( FITNESS_EQUIPMENT_TRAINER_CAPABILITIES_PAGE == fitness_dp->requested_page ) {
+                    SERIAL_DEBUG_PRINTLN( " , Equipment capabilities." );
+					#if DEBUG_LEVEL == 0
+                    	SERIAL_DEBUG_0_PRINTLN( " , Equipment capabilities." );
+					#endif
+                    // flag for sending later, immediate responses seems not received
+                    flagged_for_Send_Page54 = true;
+                  } else {
+                    SERIAL_DEBUG_PRINTLN( " , Not implemented." );
+					#if DEBUG_LEVEL == 0
+                    	SERIAL_DEBUG_0_PRINTLN( " , Not implemented." );
+					#endif
+                  }
+                }
+                break;
+
 					default:
 						SERIAL_DEBUG_PRINT_F(" Fitness DP# ");
 						SERIAL_DEBUG_PRINTLN( dp->data_page_number );
@@ -369,6 +401,26 @@ void Send_Page81() //Common Page 81 (0x51) – Product Information
 		0xFF,0xFF,0x01,0x01,0x00,0x00,0x00);
 }
 
+void Send_Page54()
+{
+  //byte:0 - Data Page Number (0x36)
+  //byte:1 - Reserved - (0xFF)
+  //byte:2 - Reserved - (0xFF)
+  //byte:3 - Reserved - (0xFF)
+  //byte:4 - Reserved - (0xFF)
+  //byte:5 - Max resistance LSB in Newtons (0-65534)
+  //byte:6 - Max resistance MSB
+  //byte:7 - Capabilities
+
+  int max_resistance = 65534;
+  byte max_resistance_LSB = byte(max_resistance & 0xFF);
+  byte max_resistance_MSB = byte((max_resistance >> 8) & 0xFF);
+
+  flagged_for_Send_Page54 = false;
+
+  antplus.send(MESG_BROADCAST_DATA_ID, MESG_INVALID_ID, 9, 0, FITNESS_EQUIPMENT_TRAINER_CAPABILITIES_PAGE,
+               0xFF, 0xFF, 0xFF, 0xFF, max_resistance_LSB, max_resistance_MSB, FITNESS_EQUIPMENT_POWER_MODE_CAPABILITY);
+}
 
 // **************************************************************************************************
 // ************************************  Setup  *****************************************************
@@ -508,6 +560,8 @@ void loop()
 			Update_Power(300);
 			Update_Cadence(80);
 			
+		    if (flagged_for_Send_Page54)
+         		Send_Page54(); //(0x36)
 			if ((message_step % 130) == 0 || ((message_step-1) % 130) == 0)
 				Send_Page81(); //(0x50)
 			else if ((message_step % 64) == 0 || ((message_step-1) % 64) == 0)
